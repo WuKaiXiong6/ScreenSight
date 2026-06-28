@@ -41,9 +41,12 @@ class Embedder:
             path = self._resolve_model_path()
             logger.info("加载 embedding 模型: %s", path)
             self._model = SentenceTransformer(path)
+            # 兼容新旧方法名
+            get_dim = getattr(self._model, "get_embedding_dimension", None) or \
+                getattr(self._model, "get_sentence_embedding_dimension")
             logger.info(
                 "embedding 模型加载完成，维度=%s",
-                self._model.get_sentence_embedding_dimension(),
+                get_dim(),
             )
 
     def _resolve_model_path(self) -> str:
