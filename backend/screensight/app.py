@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from .config import load_config, AppConfig, ensure_dirs, SCREENSHOT_DIR
+from .config import load_config, AppConfig, ensure_dirs, SCREENSHOT_DIR, BACKEND_DIR
 from .db import init_db
 from .services.recognize_service import RecognizeService
 from .services.activity_service import ActivityService
@@ -132,6 +132,20 @@ def create_app(config: Optional[AppConfig] = None) -> FastAPI:
     from .config import SCREENSHOT_DIR
     if SCREENSHOT_DIR.exists():
         app.mount("/screenshots", StaticFiles(directory=str(SCREENSHOT_DIR)), name="screenshots")
+
+    # 生产模式：托管前端构建产物（frontend/dist）
+    frontend_dist = BACKEND_DIR.parent / "frontend" / "dist"
+    if frontend_dist.exists():
+        # 静态资源（JS/CSS）挂载到 /assets
+        assets_dir = frontend_dist / "assets"
+        if assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+        # 根路径与其他非 API 路径返回 index.html（SPA fallback）
+        from fastapi.responses import FileResponse
+
+        @app.get("/", include_in_schema=False)
+        async def index():
+            return FileResponse(frontend_dist / "index.html")
 
     @app.get("/api/health")
     async def health():

@@ -57,15 +57,15 @@ class TestReportStats:
         stats = svc.compute_stats(period)
         # 总时长 = 2h(编码) + 1h(网页) + 1h(视频) = 4h
         assert stats["total_seconds"] == 4 * 3600, f"期望14400, 实际{stats['total_seconds']}"
-        assert stats["total_hours"] == "4.0"
+        assert stats["total_hours"] == "4.0h"
         # 编码开发占比 50%
         coding = [c for c in stats["by_category"] if c["category"] == "编码开发"][0]
-        assert coding["hours"] == "2.0"
+        assert coding["hours"] == "2.0h"
         assert coding["percentage"] == "50.0"
         # Top 对象
         top = stats["top_objects"][0]
         assert top["object_name"] == "ScreenSight"
-        assert top["hours"] == "2.0"
+        assert top["hours"] == "2.0h"
 
     def test_generate_report_without_llm(self, tmp_path):
         """无 LLM 时生成纯规则报告。"""
