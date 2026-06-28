@@ -35,3 +35,6 @@ backups/
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# 临时调试脚本
+.scratch/

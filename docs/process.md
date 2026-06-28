@@ -1,6 +1,6 @@
 # 文件路径：docs/process.md
 # 文件作用：ScreenSight 项目总计划、阶段状态、验证记录、未完成事项
-# 最后更新时间：2026-06-28-1924
+# 最后更新时间：2026-06-28-1949
 
 # ScreenSight 项目过程文档
 
@@ -10,12 +10,13 @@
 
 ## 1. 总计划与阶段状态
 
-### 当前阶段：需求确认（已完成）
+### 当前阶段：架构设计与技术验证（进行中）
 
 | 阶段 | 状态 | 说明 |
 |---|---|---|
 | 需求确认 | ✅ 已完成 | 通过 9 轮提问确认，产出 `docs/PRD.md` v1.0 |
-| 架构设计 | ⏳ 待开始 | 产出 `docs/ARCHITECTURE.md`，细化技术选型与模块边界 |
+| 技术验证 | ✅ 已完成 | LLM/VLM/embedding 三项核心能力全部验证通过（见第 3 节） |
+| 架构设计 | 🔄 进行中 | 产出 `docs/ARCHITECTURE.md`，固化已验证技术细节 |
 | 界面设计 | ⏳ 待开始 | 产出 `docs/DESIGN.md`（若需要） |
 | 实现规划 | ⏳ 待开始 | 拆解实现计划 |
 | 开发实现 | ⏳ 待开始 | 按 MVP 全功能交付 |
@@ -96,11 +97,45 @@
 回滚条件或后续观察点：若搜索命中率不足，可考虑补 OCR
 ```
 
+### 决策 5：本地 embedding 模型选型
+```txt
+时间：2026-06-28-1949
+背景：用户配置的火山方舟(glm-5.2)与小米(mimo-v2.5)两家均不支持 embedding 端点，RAG 需要向量能力
+决策：
+  - 采用本地 embedding 模型 BAAI/bge-large-zh-v1.5（1024 维，中文专精，约 1.3GB）
+  - 数据不出本机，符合"纯本地存储不上云"原则
+  - 模型经 ModelScope 镜像下载，加载 0.3s，编码 4 条 0.35s
+备选方案：
+  - 云端 embedding API（被否决，与纯本地原则不符且需额外 Key）
+  - bge-m3（2.3GB，中英文通用，体积偏大，留作后续可选升级）
+影响：引入 sentence-transformers + torch 依赖（体积较大，但为本地 RAG 必要成本）
+回滚条件或后续观察点：若需多语言或更高精度，可升级为 bge-m3
+```
+
 ---
 
 ## 3. 验证记录
 
-### 需求确认阶段验证
+### 技术验证：LLM/VLM/Embedding 连通性与输出质量
+```txt
+验证时间：2026-06-28-1949
+验证对象：云端 LLM(火山方舟 glm-5.2) / 云端 VLM(小米 mimo-v2.5) / 本地 embedding(bge-large-zh-v1.5)
+验证环境：Python 3.14.3 / openai SDK 2.44.0 / sentence-transformers 5.6.0
+操作步骤：
+  1. 用 OpenAI 兼容协议分别调用 LLM 与 VLM，传结构化 Prompt 要求输出 JSON
+  2. VLM 用程序生成的模拟"VSCode 写 Python"截图测试视觉识别
+  3. 加载本地 bge-large-zh-v1.5 测试中文语义相似度
+观察现象：
+  - LLM/VLM 均为推理模型(reasoning model)，max_tokens<1000 时输出为空（token 全用于推理）
+  - max_tokens=2000 时输出正常：LLM 8.2s/次，VLM 7.3s/次，输出在 content 字段，推理在 reasoning_content 字段
+  - VLM 准确识别"VSCode 编辑 Python，项目 ScreenSight，在写截屏函数"，置信度 0.95
+  - 本地 embedding 加载 0.3s，编码 4 条 0.35s，「写代码」与「编写Python脚本」相似度 0.87（高），与「看电影」0.19（低）
+结论：通过
+遗留问题：
+  1. 推理模型耗时 7-8s/次，需异步调用避免阻塞截屏
+  2. 两个模型均为推理模型，token 消耗含 reasoning_tokens，费用统计需包含此项
+  3. .env.local 中 LLM 与 VLM 段变量同名(TALK2ESP_LLM_*)，应用层需用不同前缀(LLM_*/VLM_*)解析
+```
 ```txt
 验证时间：2026-06-28-1924
 验证对象：docs/PRD.md
