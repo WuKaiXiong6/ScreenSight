@@ -1,0 +1,37 @@
+# 敏感配置（含真实 API Key 等，严禁提交）
+.env
+.env.local
+.env.*
+*.env
+secrets.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+env/
+build/
+dist/
+
+# 数据与截图（运行时生成，不纳入版本库）
+data/
+screenshots/
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+backups/
+*.zip
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
