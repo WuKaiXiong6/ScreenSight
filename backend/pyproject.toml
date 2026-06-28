@@ -1,6 +1,6 @@
 # 文件路径：backend/pyproject.toml
 # 文件作用：ScreenSight 后端依赖管理与项目元数据
-# 最后更新时间：2026-06-28-1949
+# 最后更新时间：2026-06-29-0115
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -36,6 +36,10 @@ windows = [
 # PDF 导出（体积较大，按需安装）
 pdf = [
     "weasyprint>=60",
+]
+# Windows 打包（PyInstaller，按需安装）
+packaging = [
+    "pyinstaller>=6.6",
 ]
 dev = [
     "pytest>=8.0",

@@ -1,6 +1,6 @@
 # 文件路径：docs/process.md
 # 文件作用：ScreenSight 项目总计划、阶段状态、验证记录、未完成事项
-# 最后更新时间：2026-06-28-1949
+# 最后更新时间：2026-06-29-0115
 
 # ScreenSight 项目过程文档
 
@@ -10,7 +10,7 @@
 
 ## 1. 总计划与阶段状态
 
-### 当前阶段：MVP 完成（待人工界面验证）
+### 当前阶段：MVP + Windows 打包完成（待用户人工 UI 验证）
 
 | 阶段 | 状态 | 说明 |
 |---|---|---|
@@ -20,6 +20,7 @@
 | 开发实现 | ✅ 已完成 | 后端+前端+托盘全部实现，单元测试 24 项通过 |
 | 后端链路验证 | ✅ 已完成 | 端到端真实链路验证通过（见第 3 节） |
 | 前后端联调 | ✅ 已完成 | API 巡检通过，RAG 问答准确回答用户行为 |
+| Windows 打包 | ✅ 已完成 | PyInstaller 单目录方案，真实 exe 启动联调通过 |
 | 人工界面验证 | ⏳ 待用户 | 前端 UI 视觉与交互需用户在浏览器人工验证 |
 
 ### MVP 范围
@@ -112,6 +113,24 @@
 回滚条件或后续观察点：若需多语言或更高精度，可升级为 bge-m3
 ```
 
+### 决策 6：Windows 打包方案
+```txt
+时间：2026-06-29-0115
+背景：MVP 完成，分发要求脱离 Python 环境运行
+决策：
+  - 采用 PyInstaller 单目录(onedir)方案，入口 ScreenSight.exe
+  - 资源路径双根分层：只读资源 → sys._MEIPASS；用户数据 → exe 同级目录（可被 SCREENSIGHT_DATA_HOME 覆盖）
+  - bge embedding 模型不打入 exe，沿用 ModelScope 懒加载（首次启动联网下载）
+  - prompts / 前端 dist / sqlite_vec/vec0.dll 通过 spec datas 与 collect_data_files 收集
+  - apscheduler / sqlite_vec / pynput / pystray / mss / uvicorn 关键子模块显式声明 hiddenimports
+备选方案：
+  - PyInstaller onefile：启动慢（解压 torch 数十秒），被否决
+  - Nuitka：打包结果更小但兼容性风险大、调试成本高，留作后续优化方向
+  - Electron 重写：违背"Python + FastAPI"既有技术栈，工作量过大
+影响：分发体积约 690 MB（torch + sentence-transformers 占主），首次启动需联网下载 embedding 模型
+回滚条件或后续观察点：若体积无法接受，可尝试剥离 torch CUDA 部分或换 onnxruntime
+```
+
 ---
 
 ## 3. 验证记录
@@ -194,6 +213,35 @@
   3. PDF 导出需额外安装 weasyprint（体积大，按需启用）
 ```
 
+### 验证：Windows 打包后真实 exe 启动联调
+```txt
+验证时间：2026-06-29-0115
+验证对象：PyInstaller 打包产物 dist/ScreenSight/ScreenSight.exe
+验证环境：Windows 10 / Python 3.14 / PyInstaller 6.21.0 / Node 24 / 真实云端 VLM+LLM
+操作步骤：
+  1. 安装 packaging 依赖（pyinstaller>=6.6）
+  2. cd frontend && npm run build（前端生产产物已存在则跳过）
+  3. python -m PyInstaller screensight.spec --noconfirm
+  4. 用临时数据根启动：SCREENSIGHT_DATA_HOME=C:\Users\..\Temp\screensight-pkg-test，SCREENSIGHT_PORT=8766
+  5. 在该临时根放入 .env.local（含真实 LLM/VLM 配置）
+  6. 启动 dist/ScreenSight/ScreenSight.exe，等待初始化
+  7. 巡检 /api/health、/api/control/status、/api/timeline、/api/stats/usage、/、/assets/...
+观察现象：
+  - 打包耗时约 7 分钟，产物 dist/ScreenSight/ 共 691 MB（torch 占大头）
+  - 资源收集正确：_internal/screensight/prompts/、_internal/frontend/dist/、_internal/sqlite_vec/vec0.dll 全部就位
+  - 启动日志按序输出：托盘启动 → 键鼠监听 → 锁屏监控 → 截屏调度 → APScheduler → lifespan 完成
+  - 截屏循环工作正常：30 秒内即触发首次 VLM 调用（mimo-v2.5 返回 200，6479 tokens）
+  - 识别结果落库：/api/timeline 返回 1 条"编码开发 / Screensight"活动时段，含起止时间与时长
+  - SPA 入口正常：GET / 返回前端 index.html，可被浏览器加载
+  - 费用统计：/api/stats/usage 记录 vlm 1 次调用 6479 tokens
+  - 用户数据隔离生效：SCREENSIGHT_DATA_HOME 下生成 data/screensight.db、data/screenshots/、data/models/
+结论：通过
+遗留问题：
+  1. 体积约 690 MB，主要来自 torch；后续可剥离 CUDA 仅保留 CPU runtime（约可省 300+ MB）
+  2. 首次启动若联网失败将无法下载 bge embedding 模型（已在 README 标注）
+  3. 控制台窗口可见（console=True），正式分发可改为 console=False（需调整 stdout 重定向以保留日志）
+```
+
 ---
 
 ## 4. 未完成事项
@@ -209,9 +257,10 @@
 - [x] 前端 SPA（时间线/报告/搜索/设置，React+AntDesign）
 - [x] 系统托盘与后台启动（pystray + 自动打开浏览器 + 前端托管）
 - [x] 前后端联调与 API 巡检通过
+- [x] Windows 打包方案（PyInstaller 单目录 + 双根路径策略 + 真实 exe 启动联调）
 - [ ] 人工界面验证：前端 UI 视觉与交互需用户在浏览器验证
-- [ ] Windows 打包方案（PyInstaller/Nuitka，当前需 Python 环境运行）
 - [ ] PDF 导出（需额外安装 weasyprint）
+- [ ] 打包瘦身（剥离 torch CUDA 仅留 CPU runtime，预计可省 300+ MB）
 
 ---
 
@@ -223,3 +272,4 @@
 | 2026-06-28-1949 | 技术验证通过，产出 ARCHITECTURE.md，记录 embedding 决策 |
 | 2026-06-28-2016 | 后端核心链路端到端验证通过，进入前端开发 |
 | 2026-06-28-2036 | MVP 完成：前端+托盘+联调验证通过，待人工界面验证 |
+| 2026-06-29-0115 | Windows 打包完成：PyInstaller 单目录方案 + 真实 exe 启动联调通过 |

@@ -1,6 +1,6 @@
 # 文件路径：README.md
 # 文件作用：ScreenSight 项目说明、使用/运行/部署说明
-# 最后更新时间：2026-06-28-1924
+# 最后更新时间：2026-06-29-0115
 
 # ScreenSight
 
@@ -33,6 +33,7 @@ ScreenSight 通过定时截取屏幕并交给云端 VLM 分析，识别你正在
 - ✅ 时间线界面（色块时间轴 + 详情列表）
 - ✅ 系统托盘 + 自动打开浏览器
 - ✅ 后端端到端真实链路验证通过
+- ✅ Windows 打包（PyInstaller 单目录，含真实 exe 启动联调）
 
 详见 [docs/process.md](docs/process.md) 的验证记录。
 
@@ -123,6 +124,43 @@ cd frontend && npm run dev
 ### 首次运行注意
 
 首次启动时，本地 embedding 模型（bge-large-zh-v1.5，约 1.3GB）会自动从 ModelScope 下载到 `data/models/`，需联网等待。下载完成后后续启动无需联网即可向量化。
+
+## Windows 打包（PyInstaller）
+
+可将后端 + 前端 dist + 托盘打成单目录发行包，目标机器无需安装 Python。
+
+### 构建步骤
+
+```powershell
+# 1. 安装打包依赖
+pip install -e backend[windows,packaging]
+
+# 2. 构建前端生产产物
+cd frontend; npm install; npm run build; cd ..
+
+# 3. 运行 PyInstaller（或直接调用脚本）
+pyinstaller screensight.spec --noconfirm
+# 也可一键执行：
+.\build_windows.ps1   # PowerShell
+.\build_windows.bat   # CMD
+```
+
+构建产物位于 `dist/ScreenSight/`，可整体压缩或安装包形式分发。入口程序为 `dist/ScreenSight/ScreenSight.exe`，约 690 MB（含 torch / sentence-transformers）。
+
+### 发行包目录约定
+
+打包后运行时的路径策略：
+- **只读资源**（prompts、前端 dist、`vec0.dll`）位于 `_internal/`，由 PyInstaller 自动解压到 `_MEIPASS`
+- **用户数据**（数据库、截图、模型缓存）默认写到 `ScreenSight.exe` **所在目录**的 `data/`
+- **`.env.local`** 默认从 `ScreenSight.exe` **所在目录**读取
+- 可通过环境变量 `SCREENSIGHT_DATA_HOME=<绝对路径>` 显式指定用户数据根（含 `.env.local` 与 `data/` 子目录）
+
+### 发布前清单
+
+- [ ] 在 `dist/ScreenSight/` 旁放置 `.env.local`（含 LLM/VLM 配置；切勿在分发前留有真实 Key）
+- [ ] 首次启动需联网下载 embedding 模型（1.3 GB），完成后可离线运行
+- [ ] 若目标机器无 VC++ 运行库，需补装 Microsoft Visual C++ Redistributable
+- [ ] PDF 导出（weasyprint）默认未打包，按需另行安装
 
 ## 配置说明
 

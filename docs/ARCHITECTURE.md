@@ -1,12 +1,12 @@
 # 文件路径：docs/ARCHITECTURE.md
 # 文件作用：ScreenSight 技术架构设计，定义模块边界、数据流、技术选型与关键实现细节
-# 最后更新时间：2026-06-28-1949
+# 最后更新时间：2026-06-29-0115
 
 # ScreenSight 技术架构文档
 
-> 版本：v1.0
-> 状态：基于技术验证结果固化，进入实现阶段
-> 最后更新：2026-06-28-1949
+> 版本：v1.1
+> 状态：MVP 完成 + Windows 打包验证通过
+> 最后更新：2026-06-29-0115
 
 ---
 
@@ -541,7 +541,75 @@ dependencies = [
 
 ## 9. 待后续细化
 
-- Windows 打包方案（PyInstaller / Nuitka，需验证 bge 模型打包）
+- ~~Windows 打包方案（PyInstaller / Nuitka，需验证 bge 模型打包）~~ → 已采用 PyInstaller 单目录方案（见 §10）
 - 前端 UI 组件库最终选型
 - weasyprint 体积过大时的 PDF 替代方案
 - 多用户场景预留（当前不做，但 schema 不阻断）
+
+---
+
+## 10. Windows 打包（PyInstaller）
+
+### 10.1 形态选型
+- 采用 **PyInstaller 单目录(onedir)** 方案，产物为 `dist/ScreenSight/`（含 `ScreenSight.exe` + `_internal/`）。
+- 不用 onefile：onefile 启动需解压全部依赖（含 torch ~500MB），冷启动延迟数十秒；onedir 启动几乎即时。
+- bge embedding 模型（1.3 GB）**不打入产物**，按现有 ModelScope 懒加载机制首次启动时下载到 `data/models/`。
+
+### 10.2 资源 / 数据路径分层
+`config.py` 引入 frozen 检测，区分两类根：
+
+| 用途 | 源码模式 | 打包模式 |
+|---|---|---|
+| 只读资源 `RESOURCE_ROOT`<br>（prompts、frontend dist、vec0.dll） | 仓库根 | `sys._MEIPASS`（启动时解压目录） |
+| 用户数据 `PROJECT_ROOT`<br>（数据库、截图、模型、.env.local） | 仓库根 | `Path(sys.executable).parent` |
+| 覆盖项 | — | 环境变量 `SCREENSIGHT_DATA_HOME=<绝对路径>` 优先 |
+
+派生路径：
+- `DATA_DIR = PROJECT_ROOT/data`
+- `DB_PATH = DATA_DIR/screensight.db`
+- `SCREENSHOT_DIR = DATA_DIR/screenshots`
+- `MODEL_CACHE_DIR = DATA_DIR/models`
+- `PROMPT_DIR = RESOURCE_ROOT/screensight/prompts`（打包模式）
+- `FRONTEND_DIST = RESOURCE_ROOT/frontend/dist`（打包模式）
+
+### 10.3 PyInstaller 关键配置（`screensight.spec`）
+- 入口：`backend/run.py`
+- `datas`：
+  - `backend/screensight/prompts/` → `screensight/prompts/`
+  - `frontend/dist/` → `frontend/dist/`
+  - `collect_data_files("sqlite_vec")` 拉入 `vec0.dll`
+- `hiddenimports`：
+  - `collect_submodules("apscheduler")` / `collect_submodules("sqlite_vec")`
+  - `pynput.keyboard._win32` / `pynput.mouse._win32` / `pystray._win32` / `mss.windows`
+  - `uvicorn.loops.auto` / `uvicorn.protocols.http.auto` / `uvicorn.protocols.websockets.auto` / `uvicorn.lifespan.on`
+- `excludes`：tkinter / matplotlib / notebook / IPython / pytest / pandas.tests
+- `console=True`：保留控制台便于查看日志（可视实际分发改 False）
+
+### 10.4 构建脚本
+- `build_windows.bat` / `build_windows.ps1`：一键构建（前端 build → 清理 build/dist → 调用 pyinstaller）
+- 依赖：`pip install -e backend[windows,packaging]`，需 Node 18+
+
+### 10.5 发行包目录结构
+```
+dist/ScreenSight/
+├── ScreenSight.exe                  # 入口，等价 backend/run.py
+├── .env.local                       # 用户配置（分发时不应预置真实 Key）
+├── data/                            # 运行时生成（数据库 / 截图 / 模型缓存）
+│   ├── screensight.db
+│   ├── screenshots/
+│   └── models/BAAI/bge-large-zh-v1.5/
+└── _internal/                       # PyInstaller 收集的依赖
+    ├── frontend/dist/...            # 前端静态资源
+    ├── screensight/prompts/...      # Prompt 模板
+    ├── sqlite_vec/vec0.dll
+    ├── torch/ / sentence_transformers/ / ...
+    └── python314.dll
+```
+
+### 10.6 产物体积
+- 约 690 MB：torch 占大头（~500 MB），sentence-transformers 约 100 MB，其他 Python 运行时与依赖约 90 MB。
+- 进一步瘦身路径（暂未启用）：剥离 torch CUDA 部分仅保留 CPU、剔除 sklearn/scipy 等非必需子包。
+
+### 10.7 验证策略
+- 自动化：在临时 `SCREENSIGHT_DATA_HOME` 下启动 exe，巡检 `/api/health` / `/api/timeline` / `/api/control/status` / `/api/stats/usage`，确认托盘 / 调度器 / 云端 VLM 调用全部正常。
+- 人工：在干净 Windows 机器解压发行包，按 README 流程跑一遍完整链路（截屏 → 识别 → 时间线 → 报告 → RAG）。

@@ -1,6 +1,6 @@
 # 文件路径：backend/screensight/app.py
 # 文件作用：FastAPI 应用入口，组装各服务与路由，启动后台调度
-# 最后更新时间：2026-06-28-2015
+# 最后更新时间：2026-06-29-0115
 
 """FastAPI 应用入口。
 
@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from .config import load_config, AppConfig, ensure_dirs, SCREENSHOT_DIR, BACKEND_DIR
+from .config import load_config, AppConfig, ensure_dirs, SCREENSHOT_DIR, FRONTEND_DIST
 from .db import init_db
 from .services.recognize_service import RecognizeService
 from .services.activity_service import ActivityService
@@ -133,8 +133,8 @@ def create_app(config: Optional[AppConfig] = None) -> FastAPI:
     if SCREENSHOT_DIR.exists():
         app.mount("/screenshots", StaticFiles(directory=str(SCREENSHOT_DIR)), name="screenshots")
 
-    # 生产模式：托管前端构建产物（frontend/dist）
-    frontend_dist = BACKEND_DIR.parent / "frontend" / "dist"
+    # 生产模式：托管前端构建产物（打包后位于 _MEIPASS/frontend/dist，源码模式位于 frontend/dist）
+    frontend_dist = FRONTEND_DIST
     if frontend_dist.exists():
         # 静态资源（JS/CSS）挂载到 /assets
         assets_dir = frontend_dist / "assets"
