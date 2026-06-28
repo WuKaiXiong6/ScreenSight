@@ -1,0 +1,9 @@
+/* 文件路径：frontend/src/index.css
+   文件作用：全局样式重置
+   最后更新时间：2026-06-28-2016 */
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; padding: 0; height: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: #f0f2f5;
+}

@@ -40,8 +40,13 @@ class ReportPeriod:
 
 
 def _format_hours(seconds: int) -> str:
-    """秒转小时字符串（保留1位小数）。"""
-    return f"{seconds / 3600:.1f}"
+    """秒转可读时长：>=1h 显示小时，否则显示分钟（保留1位小数）。"""
+    if seconds < 3600:
+        return f"{seconds / 60:.1f}分"
+    h = seconds / 3600
+    if h < 10:
+        return f"{h:.1f}h"
+    return f"{h:.0f}h"
 
 
 class ReportService:

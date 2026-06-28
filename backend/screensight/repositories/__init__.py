@@ -265,22 +265,33 @@ def insert_segment(
     object_name: str,
     capture_ids: list[int],
     is_low_confidence: bool = False,
+    estimated_end: Optional[str] = None,
     conn: Optional[sqlite3.Connection] = None,
 ) -> int:
-    """新建活动时段，返回 id。end_time 初始等于 start_time。"""
+    """新建活动时段，返回 id。
+
+    Args:
+        estimated_end: 预估结束时间（单条截图时设为 start+间隔，使时长非0）。
+                       若为 None 则 end_time=start_time（duration=0）。
+    """
     own_conn = conn is None
     if own_conn:
         conn = get_db().__enter__()
     try:
+        end_time = estimated_end or start_time
+        if estimated_end:
+            duration = max(0, int((iso_to_dt(estimated_end) - iso_to_dt(start_time)).total_seconds()))
+        else:
+            duration = 0
         cur = conn.execute(
             """INSERT INTO activity_segments
                (start_time, end_time, category, sub_desc, object_name,
                 capture_ids, capture_count, duration_seconds, is_low_confidence,
                 is_closed, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)""",
-            (start_time, start_time, category, sub_desc,
+            (start_time, end_time, category, sub_desc,
              object_name if object_name else "",
-             json.dumps(capture_ids), len(capture_ids), 0,
+             json.dumps(capture_ids), len(capture_ids), duration,
              int(is_low_confidence), now_iso()),
         )
         return cur.lastrowid

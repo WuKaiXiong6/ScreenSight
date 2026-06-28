@@ -1,0 +1,63 @@
+/* 文件路径：frontend/src/App.css
+   文件作用：主布局样式
+   最后更新时间：2026-06-28-2016 */
+.logo {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f1f1f;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.app-header {
+  background: #fff !important;
+  padding: 0 24px !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #f0f0f0;
+  height: 56px;
+}
+.app-content {
+  margin: 16px;
+  padding: 24px;
+  background: #fff;
+  border-radius: 8px;
+  overflow: auto;
+}
+
+/* 时间轴色块 */
+.timeline-bar {
+  position: relative;
+  height: 40px;
+  background: #f5f5f5;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+}
+.timeline-block {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  min-width: 2px;
+  opacity: 0.85;
+  transition: opacity 0.2s;
+}
+.timeline-block:hover {
+  opacity: 1;
+}
+.timeline-hour-marks {
+  position: relative;
+  height: 20px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #999;
+}
+.timeline-hour-mark {
+  position: absolute;
+  transform: translateX(-50%);
+}

@@ -27,7 +27,6 @@ class ActivityService:
 
     def __init__(self, settings: Settings):
         self._settings = settings
-
     def merge_recognition(
         self,
         capture_id: int,
@@ -54,7 +53,11 @@ class ActivityService:
             else:
                 # 间隔过大：关闭旧时段，新建
                 close_segment(seg.id)
-        # 新建时段
+        # 新建时段：预估结束时间为 start + 活跃截屏间隔
+        # （代表这次活动至少持续到下次截屏前，使单条截图也有合理时长）
+        from datetime import timedelta
+        start_dt = iso_to_dt(captured_at)
+        estimated_end = (start_dt + timedelta(seconds=self._settings.capture_interval_active)).isoformat()
         return insert_segment(
             start_time=captured_at,
             category=category,
@@ -62,6 +65,7 @@ class ActivityService:
             object_name=object_name,
             capture_ids=[capture_id],
             is_low_confidence=is_low_confidence,
+            estimated_end=estimated_end,
         )
 
     def close_all(self) -> int:
