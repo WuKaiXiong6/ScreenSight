@@ -334,6 +334,30 @@ def close_segment(segment_id: int, conn: Optional[sqlite3.Connection] = None) ->
             conn.commit()
 
 
+def set_segment_end(segment_id: int, end_time: str,
+                    conn: Optional[sqlite3.Connection] = None) -> None:
+    """显式设置时段结束时间并重算时长（关闭时段时使用）。"""
+    own_conn = conn is None
+    if own_conn:
+        conn = get_db().__enter__()
+    try:
+        row = conn.execute(
+            "SELECT start_time FROM activity_segments WHERE id=?", (segment_id,)
+        ).fetchone()
+        if not row:
+            return
+        start_dt = iso_to_dt(row["start_time"])
+        end_dt = iso_to_dt(end_time)
+        duration = max(0, int((end_dt - start_dt).total_seconds()))
+        conn.execute(
+            "UPDATE activity_segments SET end_time=?, duration_seconds=?, is_closed=1 WHERE id=?",
+            (end_time, duration, segment_id),
+        )
+    finally:
+        if own_conn:
+            conn.commit()
+
+
 def close_all_open_segments(conn: Optional[sqlite3.Connection] = None) -> int:
     """关闭所有未关闭时段（如暂停/锁屏时），返回关闭数。"""
     own_conn = conn is None

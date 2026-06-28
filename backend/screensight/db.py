@@ -98,11 +98,12 @@ CREATE TABLE IF NOT EXISTS usage_stats (
 );
 
 -- 全文搜索索引（识别描述+报告文本+标签对象名）
+-- 使用 trigram 分词器，对中文支持好（按三字组切分）
 CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
     content,
     source_type,        -- recognition/report
     source_id,
-    tokenize='unicode61'
+    tokenize='trigram'
 );
 """
 

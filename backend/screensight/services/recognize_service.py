@@ -206,6 +206,12 @@ class RecognizeService:
         )
         update_capture_recognition(capture_id, "success", recognition_id=rid)
         record_usage("vlm", 1, result.tokens_used, result.cost_estimate)
+        # 写入全文索引（关键词搜索用）
+        try:
+            from ..services.search_service import SearchService
+            SearchService.index_recognition(rid)
+        except Exception as e:
+            logger.warning("写入全文索引失败: %s", e)
         # 异步向量化（不阻塞识别主流程）
         text = " ".join(filter(None, [result.activity, result.sub_desc, result.object_name]))
         if text:
