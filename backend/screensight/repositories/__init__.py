@@ -536,7 +536,10 @@ def record_usage(
     stat_date: Optional[str] = None,
     conn: Optional[sqlite3.Connection] = None,
 ) -> None:
-    """记录 API 调用用量（按天聚合）。"""
+    """记录 API 调用用量（按天 + 按小时双写）。
+
+    小时粒度用于趋势图与单小时成本，天粒度保持原有兼容。
+    """
     own_conn = conn is None
     if own_conn:
         conn = get_db().__enter__()
@@ -550,6 +553,20 @@ def record_usage(
                  tokens_used=tokens_used+excluded.tokens_used,
                  cost_estimate=cost_estimate+excluded.cost_estimate""",
             (date, api_type, call_count, tokens_used, cost_estimate),
+        )
+        # 同步写小时表：stat_date 为 YYYY-MM-DD 时取当日 00:00，否则用当前小时
+        if stat_date and len(stat_date) >= 10:
+            hour = stat_date[:10] + " 00:00"
+        else:
+            hour = now_iso()[:13] + ":00"
+        conn.execute(
+            """INSERT INTO usage_stats_hourly(stat_hour, api_type, call_count, tokens_used, cost_estimate)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(stat_hour, api_type) DO UPDATE SET
+                 call_count=call_count+excluded.call_count,
+                 tokens_used=tokens_used+excluded.tokens_used,
+                 cost_estimate=cost_estimate+excluded.cost_estimate""",
+            (hour, api_type, call_count, tokens_used, cost_estimate),
         )
     finally:
         if own_conn:
@@ -571,6 +588,87 @@ def query_usage(start_date: Optional[str] = None, end_date: Optional[str] = None
             sql += " AND stat_date <= ?"
             params.append(end_date)
         sql += " ORDER BY stat_date DESC, api_type"
+        rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        if own_conn:
+            conn.commit()
+
+
+def query_usage_hourly(start_hour: Optional[str] = None, end_hour: Optional[str] = None,
+                       conn: Optional[sqlite3.Connection] = None) -> list[dict]:
+    """查询小时级用量（用于趋势图与单小时成本）。"""
+    own_conn = conn is None
+    if own_conn:
+        conn = get_db().__enter__()
+    try:
+        sql = "SELECT * FROM usage_stats_hourly WHERE 1=1"
+        params: list[Any] = []
+        if start_hour:
+            sql += " AND stat_hour >= ?"
+            params.append(start_hour)
+        if end_hour:
+            sql += " AND stat_hour <= ?"
+            params.append(end_hour)
+        sql += " ORDER BY stat_hour ASC, api_type"
+        rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        if own_conn:
+            conn.commit()
+
+
+def query_usage_trend(start_date: Optional[str] = None, end_date: Optional[str] = None,
+                      conn: Optional[sqlite3.Connection] = None) -> list[dict]:
+    """按天聚合费用趋势（每天一行：date, total_cost, total_calls, total_tokens）。"""
+    own_conn = conn is None
+    if own_conn:
+        conn = get_db().__enter__()
+    try:
+        sql = (
+            "SELECT stat_date AS date, "
+            "SUM(call_count) AS total_calls, "
+            "SUM(tokens_used) AS total_tokens, "
+            "SUM(cost_estimate) AS total_cost "
+            "FROM usage_stats WHERE 1=1"
+        )
+        params: list[Any] = []
+        if start_date:
+            sql += " AND stat_date >= ?"
+            params.append(start_date)
+        if end_date:
+            sql += " AND stat_date <= ?"
+            params.append(end_date)
+        sql += " GROUP BY stat_date ORDER BY stat_date ASC"
+        rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        if own_conn:
+            conn.commit()
+
+
+def query_usage_breakdown(start_date: Optional[str] = None, end_date: Optional[str] = None,
+                          conn: Optional[sqlite3.Connection] = None) -> list[dict]:
+    """按 api_type 聚合占比（vlm/llm/embedding 的费用与调用次数占比）。"""
+    own_conn = conn is None
+    if own_conn:
+        conn = get_db().__enter__()
+    try:
+        sql = (
+            "SELECT api_type, "
+            "SUM(call_count) AS total_calls, "
+            "SUM(tokens_used) AS total_tokens, "
+            "SUM(cost_estimate) AS total_cost "
+            "FROM usage_stats WHERE 1=1"
+        )
+        params: list[Any] = []
+        if start_date:
+            sql += " AND stat_date >= ?"
+            params.append(start_date)
+        if end_date:
+            sql += " AND stat_date <= ?"
+            params.append(end_date)
+        sql += " GROUP BY api_type ORDER BY total_cost DESC"
         rows = conn.execute(sql, params).fetchall()
         return [dict(r) for r in rows]
     finally:

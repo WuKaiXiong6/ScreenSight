@@ -230,8 +230,8 @@ class ReportService:
 
     # ============ 导出 ============
 
-    def export_markdown(self, report: dict) -> str:
-        """导出为 Markdown。"""
+    def export_markdown(self, report: dict, redact: bool = False) -> str:
+        """导出为 Markdown。redact=True 时对象名脱敏。"""
         stats = report["stats"]
         lines = [
             f"# {self._type_name(report['report_type'])}报告",
@@ -253,7 +253,8 @@ class ReportService:
         lines.append("| 项目/对象 | 时长 |")
         lines.append("|---|---|")
         for o in stats["top_objects"]:
-            lines.append(f"| {o['object_name']} | {o['hours']} |")
+            name = self._redact_name(o["object_name"]) if redact else o["object_name"]
+            lines.append(f"| {name} | {o['hours']} |")
         lines.append("")
         if report.get("llm_summary"):
             lines.append("## 总结与洞察")
@@ -263,9 +264,21 @@ class ReportService:
         lines.append("## 时间轴活动列表")
         lines.append("")
         for t in stats["timeline"]:
+            obj = t["object_name"]
+            if obj and redact:
+                obj = self._redact_name(obj)
             lines.append(f"- {t['start']} ~ {t['end']} {t['category']}"
-                         f"{' - ' + t['object_name'] if t['object_name'] else ''}")
+                         f"{' - ' + obj if obj else ''}")
         return "\n".join(lines)
+
+    @staticmethod
+    def _redact_name(name: str) -> str:
+        """对象名脱敏：保留首字符，其余用 * 替换。"""
+        if not name:
+            return name
+        if len(name) <= 1:
+            return "*"
+        return name[0] + "*" * min(len(name) - 1, 6)
 
     @staticmethod
     def _type_name(t: str) -> str:

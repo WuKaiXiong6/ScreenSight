@@ -99,6 +99,21 @@ class TestReportStats:
         assert "分h" not in md, "分钟值后被追加 h"
         assert "时长(小时)" not in md, "表头不应硬编码单位(小时)"
 
+    def test_export_markdown_redact(self, tmp_path):
+        """隐私脱敏导出：对象名应被打码。"""
+        set_db_path(tmp_path / "t.db")
+        init_db(tmp_path / "t.db")
+        base = _seed_data()
+        svc = ReportService(AppConfig())
+        report = svc.generate_report("daily", base, use_llm=False)
+        md_plain = svc.export_markdown(report, redact=False)
+        md_redact = svc.export_markdown(report, redact=True)
+        # 原文含完整对象名 ScreenSight
+        assert "ScreenSight" in md_plain
+        # 脱敏后不含完整对象名
+        assert "ScreenSight" not in md_redact
+        assert "S******" in md_redact  # 首字符 + 6 个星
+
 
 class TestSearch:
     """搜索服务测试。"""

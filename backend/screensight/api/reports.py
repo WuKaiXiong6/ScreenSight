@@ -59,14 +59,15 @@ async def generate_report(req: GenerateRequest):
 async def export_report(
     report_id: int,
     format: str = Query("md", pattern="^(md|pdf)$"),
+    redact: bool = Query(False, description="隐私脱敏：对象名打码"),
 ):
-    """导出报告。"""
+    """导出报告。redact=True 时对对象名脱敏。"""
     ctx = get_context()
     report = ctx.report_service.get_report(report_id)
     if not report:
         raise HTTPException(404, "报告不存在")
     if format == "md":
-        md = ctx.report_service.export_markdown(report)
+        md = ctx.report_service.export_markdown(report, redact=redact)
         return PlainTextResponse(md, media_type="text/markdown; charset=utf-8",
                                  headers={"Content-Disposition": f"attachment; filename=report_{report_id}.md"})
     # PDF 暂未实现（需 weasyprint，体积大）

@@ -1,6 +1,6 @@
 # 文件路径：backend/screensight/db.py
 # 文件作用：SQLite 数据库连接管理、schema 初始化与 sqlite-vec 扩展加载
-# 最后更新时间：2026-06-28-1949
+# 最后更新时间：2026-07-02-1209
 
 """数据库连接与初始化。
 
@@ -97,6 +97,17 @@ CREATE TABLE IF NOT EXISTS usage_stats (
     UNIQUE(stat_date, api_type)
 );
 
+-- 费用统计聚合（小时粒度，用于趋势图与单小时成本）
+CREATE TABLE IF NOT EXISTS usage_stats_hourly (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    stat_hour TEXT NOT NULL,               -- YYYY-MM-DD HH:00
+    api_type TEXT NOT NULL,                -- vlm/llm/embedding
+    call_count INTEGER NOT NULL,
+    tokens_used INTEGER NOT NULL,
+    cost_estimate REAL NOT NULL,
+    UNIQUE(stat_hour, api_type)
+);
+
 -- 全文搜索索引（识别描述+报告文本+标签对象名）
 -- 使用 trigram 分词器，对中文支持好（按三字组切分）
 CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
@@ -118,6 +129,7 @@ CREATE INDEX IF NOT EXISTS idx_segments_category ON activity_segments(category);
 CREATE INDEX IF NOT EXISTS idx_segments_closed ON activity_segments(is_closed);
 CREATE INDEX IF NOT EXISTS idx_reports_type_period ON reports(report_type, period_start);
 CREATE INDEX IF NOT EXISTS idx_usage_date ON usage_stats(stat_date, api_type);
+CREATE INDEX IF NOT EXISTS idx_usage_hour ON usage_stats_hourly(stat_hour, api_type);
 """
 
 

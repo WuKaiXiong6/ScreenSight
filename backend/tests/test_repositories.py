@@ -11,7 +11,8 @@ from screensight.repositories import (
     get_open_segment, insert_segment, update_segment_append,
     close_segment, close_all_open_segments, query_segments, delete_segment,
     get_setting, set_setting, get_all_settings,
-    record_usage, query_usage, get_recent_activity,
+    record_usage, query_usage, query_usage_hourly, query_usage_trend, query_usage_breakdown,
+    get_recent_activity,
 )
 from screensight.infra.timeutil import now_iso
 
@@ -133,6 +134,31 @@ def test_usage_stats(tmp_path):
     assert vlm["call_count"] == 3
     assert vlm["tokens_used"] == 1300
     assert len(rows) == 2
+
+
+def test_usage_hourly_trend_breakdown(tmp_path):
+    """小时级用量、趋势与占比查询。"""
+    set_db_path(tmp_path / "t.db")
+    init_db(tmp_path / "t.db")
+    # 双写：record_usage 同时写天表与小时表
+    record_usage("vlm", 1, 500, 0.01, stat_date="2026-07-01")
+    record_usage("vlm", 2, 800, 0.02, stat_date="2026-07-02")
+    record_usage("llm", 1, 100, 0.005, stat_date="2026-07-02")
+    # 小时级：stat_date 传日期时小时取该日 00:00 前缀
+    hourly = query_usage_hourly(start_hour="2026-07-01 00:00", end_hour="2026-07-03 00:00")
+    assert len(hourly) >= 2  # vlm(07-01) + vlm(07-02) + llm(07-02)
+    assert any(h["api_type"] == "vlm" and h["stat_hour"].startswith("2026-07-01") for h in hourly)
+    # 趋势：按天聚合
+    trend = query_usage_trend(start_date="2026-07-01", end_date="2026-07-03")
+    assert len(trend) == 2  # 07-01, 07-02
+    d2 = [t for t in trend if t["date"] == "2026-07-02"][0]
+    assert d2["total_cost"] == 0.025
+    assert d2["total_calls"] == 3
+    # 占比：按 api_type
+    bd = query_usage_breakdown(start_date="2026-07-01", end_date="2026-07-03")
+    vlm_bd = [b for b in bd if b["api_type"] == "vlm"][0]
+    assert vlm_bd["total_cost"] == 0.03
+    assert vlm_bd["total_calls"] == 3
 
 
 def test_recent_activity(tmp_path):

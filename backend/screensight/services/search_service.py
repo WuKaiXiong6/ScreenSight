@@ -1,6 +1,6 @@
 # 文件路径：backend/screensight/services/search_service.py
 # 文件作用：搜索服务，关键词搜索(FTS5) + RAG问答检索(向量+LLM)
-# 最后更新时间：2026-06-28-2010
+# 最后更新时间：2026-07-02-1209
 
 """搜索与 RAG 服务。
 
@@ -101,9 +101,12 @@ class SearchService:
         category: Optional[str] = None,
         min_confidence: Optional[float] = None,
         top_k: int = 8,
+        retrieve_only: bool = False,
     ) -> dict:
         """RAG 问答检索。
 
+        Args:
+            retrieve_only: 为 True 时仅返回检索来源，跳过 LLM 生成（省 token）
         Returns:
             {"answer": str, "sources": [list of recognition records]}
         """
@@ -131,8 +134,7 @@ class SearchService:
                 break
         if not filtered:
             return {"answer": "未找到相关的历史记录。", "sources": []}
-        # 4. LLM 生成回答
-        answer = self._generate_answer(question, filtered)
+        # 4. LLM 生成回答（retrieve_only 模式跳过，省 token）
         sources = [
             {
                 "id": c.get("id"),
@@ -144,6 +146,9 @@ class SearchService:
             }
             for c in filtered
         ]
+        if retrieve_only:
+            return {"answer": "", "sources": sources}
+        answer = self._generate_answer(question, filtered)
         return {"answer": answer, "sources": sources}
 
     def _generate_answer(self, question: str, sources: list[dict]) -> str:
