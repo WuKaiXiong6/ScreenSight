@@ -1,6 +1,6 @@
 # 文件路径：docs/ARCHITECTURE.md
 # 文件作用：ScreenSight 技术架构设计，定义模块边界、数据流、技术选型与关键实现细节
-# 最后更新时间：2026-06-29-0115
+# 最后更新时间：2026-07-02-1209
 
 # ScreenSight 技术架构文档
 
@@ -81,10 +81,7 @@ ScreenSight/
 │   │   ├── config.py             # 配置加载（.env.local 分段解析）
 │   │   ├── models.py             # 数据模型（Pydantic + SQLAlchemy）
 │   │   ├── db.py                 # SQLite 连接与初始化（含 sqlite-vec）
-│   │   ├── repositories/         # 数据访问层
-│   │   │   ├── capture.py        # 截图记录仓储
-│   │   │   ├── activity.py       # 活动/时段仓储
-│   │   │   └── report.py         # 报告仓储
+│   │   ├── repositories/         # 数据访问层（单文件 __init__.py，按 Captures/Recognitions/Segments/Settings/Usage/RecentActivity 分组）
 │   │   ├── services/             # 业务服务层
 │   │   │   ├── capture_service.py    # 截屏调度与多屏/焦点处理
 │   │   │   ├── recognize_service.py  # VLM 识别编排
@@ -441,20 +438,21 @@ CREATE VIRTUAL TABLE search_index USING fts5(
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | /api/timeline | 获取时间线（按天/周/月，含 segments） |
-| GET | /api/timeline/{date} | 某天详情 |
+| GET | /api/timeline/segment/{id} | 时段详情（含关联截图 captures 与 archive_path） |
 | DELETE | /api/timeline/segment/{id} | 删除某时段（隐私擦除） |
 | GET | /api/reports | 报告列表 |
 | GET | /api/reports/{id} | 报告详情 |
 | POST | /api/reports/generate | 手动生成报告 |
 | GET | /api/reports/{id}/export?format=md\|pdf | 导出 |
-| GET | /api/search/keyword?q=&start=&end=&category=&object=&min_conf= | 关键词搜索 |
+| GET | /api/search/keyword?q=&start=&end=&category=&object=&min_conf= | 关键词搜索（返回含 archive_path） |
 | POST | /api/search/rag | RAG 问答（body: {question, filters}） |
 | GET | /api/stats/usage | 费用统计 |
 | GET | /api/settings | 获取设置 |
 | PUT | /api/settings | 更新设置 |
 | POST | /api/control/pause | 暂停记录 |
 | POST | /api/control/resume | 恢复记录 |
-| GET | /api/control/status | 当前状态（ACTIVE/IDLE/LOCKED/PAUSED） |
+| GET | /api/control/status | 状态 + 最近活动（state/last_capture_at/last_recognition_at/last_data_date/today_cost/recent_error_count） |
+| GET | /screenshots/{相对路径} | 截图存档静态文件（StaticFiles 挂载 SCREENSHOT_DIR） |
 
 ---
 
