@@ -1,6 +1,6 @@
 # 文件路径：backend/tests/test_report_search.py
 # 文件作用：报告与搜索服务测试
-# 最后更新时间：2026-06-28-2010
+# 最后更新时间：2026-07-02-1209
 """报告与搜索服务测试。"""
 import json
 
@@ -92,6 +92,12 @@ class TestReportStats:
         assert "编码开发" in md
         assert "ScreenSight" in md
         assert "50.0%" in md
+        # 时长单位不应重复拼接（后端 hours 字段已含单位，导出不得再补 "小时"/"h"）
+        assert "小时 小时" not in md, "总活跃时长出现重复单位"
+        assert "hh" not in md, "分类/对象时长出现重复 h"
+        assert "分 小时" not in md, "分钟值后被追加 小时"
+        assert "分h" not in md, "分钟值后被追加 h"
+        assert "时长(小时)" not in md, "表头不应硬编码单位(小时)"
 
 
 class TestSearch:

@@ -1,6 +1,6 @@
 # 文件路径：backend/screensight/repositories/__init__.py
 # 文件作用：数据访问层，封装 captures/recognitions/segments/settings 的 CRUD
-# 最后更新时间：2026-06-28-1959
+# 最后更新时间：2026-07-02-1209
 
 """数据访问层。
 
@@ -573,6 +573,76 @@ def query_usage(start_date: Optional[str] = None, end_date: Optional[str] = None
         sql += " ORDER BY stat_date DESC, api_type"
         rows = conn.execute(sql, params).fetchall()
         return [dict(r) for r in rows]
+    finally:
+        if own_conn:
+            conn.commit()
+
+
+# ============ Recent Activity ============
+
+def get_recent_activity(conn: Optional[sqlite3.Connection] = None) -> dict:
+    """查询最近活动信息，用于首屏可理解与状态栏。
+
+    返回字段：
+      last_capture_at: 最近一次截屏时间（ISO），无则 None
+      last_recognition_at: 最近一次识别成功时间（ISO），无则 None
+      last_data_date: 最近有活动段数据的日期（YYYY-MM-DD），无则 None
+      today_cost: 今日预估费用合计（float）
+      recent_error_count: 最近 30 分钟内失败截屏数（int）
+    """
+    own_conn = conn is None
+    if own_conn:
+        conn = get_db().__enter__()
+    try:
+        result: dict[str, Any] = {
+            "last_capture_at": None,
+            "last_recognition_at": None,
+            "last_data_date": None,
+            "today_cost": 0.0,
+            "recent_error_count": 0,
+        }
+        # 最近截屏时间
+        row = conn.execute(
+            "SELECT captured_at FROM captures ORDER BY captured_at DESC LIMIT 1"
+        ).fetchone()
+        if row:
+            result["last_capture_at"] = row["captured_at"]
+        # 最近识别成功时间（关联 captures 状态为 success）
+        row = conn.execute(
+            "SELECT r.created_at FROM recognitions r "
+            "JOIN captures c ON c.id = r.capture_id "
+            "WHERE c.recognition_status = 'success' "
+            "ORDER BY r.created_at DESC LIMIT 1"
+        ).fetchone()
+        if row:
+            result["last_recognition_at"] = row["created_at"]
+        # 最近有活动段数据的日期
+        row = conn.execute(
+            "SELECT substr(start_time, 1, 10) AS d FROM activity_segments "
+            "ORDER BY start_time DESC LIMIT 1"
+        ).fetchone()
+        if row:
+            result["last_data_date"] = row["d"]
+        # 今日费用
+        today = today_str()
+        row = conn.execute(
+            "SELECT COALESCE(SUM(cost_estimate), 0) AS s FROM usage_stats WHERE stat_date = ?",
+            (today,),
+        ).fetchone()
+        if row:
+            result["today_cost"] = round(row["s"], 4)
+        # 最近 30 分钟失败截屏数
+        cutoff = iso_to_dt(now_iso()).timestamp() - 30 * 60
+        from datetime import datetime
+        cutoff_iso = datetime.fromtimestamp(cutoff).isoformat()
+        row = conn.execute(
+            "SELECT COUNT(*) AS c FROM captures "
+            "WHERE recognition_status = 'failed' AND captured_at >= ?",
+            (cutoff_iso,),
+        ).fetchone()
+        if row:
+            result["recent_error_count"] = row["c"]
+        return result
     finally:
         if own_conn:
             conn.commit()

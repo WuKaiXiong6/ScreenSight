@@ -1,9 +1,9 @@
 # 文件路径：backend/tests/test_repositories.py
 # 文件作用：数据访问层单元测试
-# 最后更新时间：2026-06-28-1959
+# 最后更新时间：2026-07-02-1209
 """仓储层测试。"""
 import json
-from screensight.db import init_db, get_connection
+from screensight.db import init_db, get_connection, set_db_path
 from screensight.repositories import (
     insert_capture, update_capture_recognition, get_capture,
     insert_recognition, get_recognition, insert_recognition_vector,
@@ -11,7 +11,7 @@ from screensight.repositories import (
     get_open_segment, insert_segment, update_segment_append,
     close_segment, close_all_open_segments, query_segments, delete_segment,
     get_setting, set_setting, get_all_settings,
-    record_usage, query_usage,
+    record_usage, query_usage, get_recent_activity,
 )
 from screensight.infra.timeutil import now_iso
 
@@ -133,3 +133,29 @@ def test_usage_stats(tmp_path):
     assert vlm["call_count"] == 3
     assert vlm["tokens_used"] == 1300
     assert len(rows) == 2
+
+
+def test_recent_activity(tmp_path):
+    """最近活动信息查询。"""
+    set_db_path(tmp_path / "t.db")
+    init_db(tmp_path / "t.db")
+    t0 = now_iso()
+    # 一条成功识别的截屏
+    cid = insert_capture(t0, 1, True, 1920, 1080)
+    rid = insert_recognition(cid, "编码开发", "Python", "ScreenSight", "写代码", 0.9, False, "{}")
+    update_capture_recognition(cid, "success", recognition_id=rid)
+    # 一条失败截屏（最近 30 分钟内）
+    insert_capture(t0, 2, False, 1920, 1080)
+    # 一个活动段
+    sid = insert_segment(t0, "编码开发", "Python", "ScreenSight", [cid])
+    close_segment(sid)
+    # 今日费用
+    from screensight.infra.timeutil import today_str
+    record_usage("vlm", 1, 100, 0.05, stat_date=today_str())
+    info = get_recent_activity()
+    assert info["last_capture_at"] is not None
+    assert info["last_recognition_at"] is not None
+    assert info["last_data_date"] is not None
+    assert info["today_cost"] == 0.05
+    # 失败截屏：上面第二条未 update 状态，默认 pending 而非 failed，故应为 0
+    assert info["recent_error_count"] == 0

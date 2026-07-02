@@ -1,6 +1,6 @@
 # 文件路径：backend/screensight/services/report_service.py
 # 文件作用：报告服务，规则统计(保准确)+LLM润色，生成小时报/日报/周报/月报
-# 最后更新时间：2026-06-28-2010
+# 最后更新时间：2026-07-02-1209
 
 """报告服务。
 
@@ -238,11 +238,11 @@ class ReportService:
             f"",
             f"**时段**：{report['period_start']} 至 {report['period_end']}",
             f"**生成时间**：{report['generated_at']}",
-            f"**总活跃时长**：{stats['total_hours']} 小时",
+            f"**总活跃时长**：{stats['total_hours']}",
             f"",
             "## 分类时长与占比",
             "",
-            "| 类别 | 时长(小时) | 占比 |",
+            "| 类别 | 时长 | 占比 |",
             "|---|---|---|",
         ]
         for c in stats["by_category"]:
@@ -250,7 +250,7 @@ class ReportService:
         lines.append("")
         lines.append("## Top 项目/对象")
         lines.append("")
-        lines.append("| 项目/对象 | 时长(小时) |")
+        lines.append("| 项目/对象 | 时长 |")
         lines.append("|---|---|")
         for o in stats["top_objects"]:
             lines.append(f"| {o['object_name']} | {o['hours']} |")
