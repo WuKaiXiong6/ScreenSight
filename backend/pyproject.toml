@@ -1,0 +1,56 @@
+# 文件路径：backend/pyproject.toml
+# 文件作用：ScreenSight 后端依赖管理与项目元数据
+# 最后更新时间：2026-06-29-0115
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "screensight"
+version = "0.1.0"
+description = "Windows 屏幕时间线工具：截屏 + VLM 识别 + 报告 + 搜索"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "mss>=9.0",
+    "Pillow>=10.0",
+    "openai>=2.0",
+    "sqlite-vec>=0.1.6",
+    "sentence-transformers>=3.0",
+    "pynput>=1.7",
+    "pystray>=0.19",
+    "apscheduler>=3.10",
+    "pydantic>=2.0",
+    "jinja2>=3.1",
+    "markdown>=3.5",
+    "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+# Windows 平台专用：锁屏检测与窗口焦点判定
+windows = [
+    "pywin32>=306",
+]
+# PDF 导出（体积较大，按需安装）
+pdf = [
+    "weasyprint>=60",
+]
+# Windows 打包（PyInstaller，按需安装）
+packaging = [
+    "pyinstaller>=6.6",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "httpx>=0.27",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["screensight*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
