@@ -142,7 +142,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ report_type, date, use_llm }),
     }),
-  exportReportUrl: (id: number) => `/api/reports/${id}/export?format=md`,
+  exportReportUrl: (id: number, redact = false) => `/api/reports/${id}/export?format=md${redact ? '&redact=true' : ''}`,
 
   // 搜索
   keywordSearch: (params: { q: string; start?: string; end?: string; category?: string; object_name?: string; min_confidence?: number }) => {
@@ -154,7 +154,7 @@ export const api = {
     if (params.min_confidence !== undefined) sp.set('min_confidence', String(params.min_confidence))
     return request<{ query: string; count: number; results: SearchResult[] }>(`/api/search/keyword?${sp}`)
   },
-  ragQuery: (question: string, filters?: { start?: string; end?: string; category?: string; min_confidence?: number }) =>
+  ragQuery: (question: string, filters?: { start?: string; end?: string; category?: string; min_confidence?: number; retrieve_only?: boolean }) =>
     request<RagResult>('/api/search/rag', {
       method: 'POST',
       body: JSON.stringify({ question, ...filters }),
@@ -169,6 +169,9 @@ export const api = {
 
   // 统计
   getUsage: (days = 30) => request<{ start: string; end: string; records: any[] }>(`/api/stats/usage?days=${days}`),
+  getUsageTrend: (days = 30) => request<{ start: string; end: string; trend: any[] }>(`/api/stats/usage/trend?days=${days}`),
+  getUsageHourly: (days = 3) => request<{ start: string; end: string; records: any[] }>(`/api/stats/usage/hourly?days=${days}`),
+  getUsageBreakdown: (days = 30) => request<{ start: string; end: string; breakdown: any[] }>(`/api/stats/usage/breakdown?days=${days}`),
 
   // 控制
   getStatus: () => request<StatusInfo>('/api/control/status'),

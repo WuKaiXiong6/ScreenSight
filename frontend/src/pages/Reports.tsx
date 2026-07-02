@@ -10,6 +10,7 @@ import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api, categoryColor, formatDuration } from '../api'
 import type { Report } from '../api'
+import { usePrivacy, redactName } from '../privacy'
 
 type ReportType = 'daily' | 'weekly' | 'monthly' | 'hourly'
 
@@ -18,6 +19,7 @@ const TYPE_LABEL: Record<string, string> = {
 }
 
 export default function ReportsPage() {
+  const privacy = usePrivacy()
   const [reports, setReports] = useState<Report[]>([])
   const [loading, setLoading] = useState(false)
   const [current, setCurrent] = useState<Report | null>(null)
@@ -70,7 +72,7 @@ export default function ReportsPage() {
   }
 
   const exportMd = (id: number) => {
-    window.open(api.exportReportUrl(id), '_blank')
+    window.open(api.exportReportUrl(id, privacy), '_blank')
   }
 
   const columns: ColumnsType<Report> = [
@@ -108,6 +110,7 @@ export default function ReportsPage() {
             value={genType}
             onChange={(v) => setGenType(v)}
             options={[
+              { label: '小时报', value: 'hourly' },
               { label: '日报', value: 'daily' },
               { label: '周报', value: 'weekly' },
               { label: '月报', value: 'monthly' },
@@ -115,6 +118,9 @@ export default function ReportsPage() {
           />
           <DatePicker value={genDate} onChange={(d) => d && setGenDate(d)} allowClear={false} />
           <Button type="primary" loading={generating} onClick={generate}>生成报告</Button>
+        </div>
+        <div style={{ marginTop: 8, color: '#999', fontSize: 12 }}>
+          小时报由调度器每小时第 59 分自动生成，也可在此手动生成指定小时段的报告。
         </div>
       </Card>
 
@@ -149,6 +155,7 @@ export default function ReportsPage() {
 }
 
 function ReportDetail({ report }: { report: Report }) {
+  const privacy = usePrivacy()
   const { stats } = report
   return (
     <div>
@@ -175,7 +182,7 @@ function ReportDetail({ report }: { report: Report }) {
       <div style={{ marginBottom: 16 }}>
         {stats.top_objects.map((o, i) => (
           <div key={i} style={{ marginBottom: 4 }}>
-            <Tag>{i + 1}</Tag> {o.object_name} - {formatDuration(o.seconds)}
+            <Tag>{i + 1}</Tag> {privacy ? redactName(o.object_name) : o.object_name} - {formatDuration(o.seconds)}
           </div>
         ))}
       </div>
@@ -195,7 +202,7 @@ function ReportDetail({ report }: { report: Report }) {
           <div key={i} style={{ marginBottom: 2 }}>
             <Tag color={categoryColor(t.category)}>{t.category}</Tag>
             {dayjs(t.start).format('HH:mm')}-{dayjs(t.end).format('HH:mm')}
-            {t.object_name ? ` - ${t.object_name}` : ''}
+            {t.object_name ? ` - ${privacy ? redactName(t.object_name) : t.object_name}` : ''}
           </div>
         ))}
       </div>

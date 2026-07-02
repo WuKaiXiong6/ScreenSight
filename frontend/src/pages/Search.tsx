@@ -3,12 +3,13 @@
 // 最后更新时间：2026-07-02-1209
 import { useEffect, useState } from 'react'
 import {
-  Input, Button, Tabs, Table, Tag, Select, DatePicker, Slider, message, Empty, Card, List, Spin, Image,
+  Input, Button, Tabs, Table, Tag, Select, DatePicker, Slider, message, Empty, Card, List, Spin, Image, Tooltip,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api, categoryColor, highlightMatch, screenshotUrl } from '../api'
 import type { SearchResult, RagResult } from '../api'
+import { usePrivacy, redactName } from '../privacy'
 
 const { RangePicker } = DatePicker
 const { TextArea } = Input
@@ -28,6 +29,7 @@ export default function SearchPage() {
 }
 
 function KeywordSearch() {
+  const privacy = usePrivacy()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -78,7 +80,13 @@ function KeywordSearch() {
       render: (path: string | null) => {
         const url = screenshotUrl(path)
         return url
-          ? <Image src={url} width={56} height={36} style={{ objectFit: 'cover', borderRadius: 3 }} />
+          ? <Image
+              src={url}
+              width={56}
+              height={36}
+              style={{ objectFit: 'cover', borderRadius: 3, filter: privacy ? 'blur(6px)' : 'none' }}
+              preview={privacy ? false : undefined}
+            />
           : <span style={{ color: '#ccc' }}>无图</span>
       },
     },
@@ -89,7 +97,7 @@ function KeywordSearch() {
     { title: '类别', dataIndex: 'category', width: 120, render: (c) => <Tag color={categoryColor(c)}>{c}</Tag> },
     {
       title: '对象', dataIndex: 'object_name', ellipsis: true,
-      render: (v) => v ? highlightMatch(v, query) : '-',
+      render: (v) => v ? (privacy ? redactName(v) : highlightMatch(v, query)) : '-',
     },
     {
       title: '活动描述', dataIndex: 'activity', ellipsis: true,
@@ -170,9 +178,18 @@ function KeywordSearch() {
 }
 
 function RagSearch() {
+  const privacy = usePrivacy()
   const [question, setQuestion] = useState('')
   const [result, setResult] = useState<RagResult | null>(null)
   const [loading, setLoading] = useState(false)
+  const [retrieveOnly, setRetrieveOnly] = useState(false)
+  const [category, setCategory] = useState<string>()
+  const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>()
+  const [categories, setCategories] = useState<{ category: string; cnt: number }[]>([])
+
+  useEffect(() => {
+    api.getFacets().then((r) => setCategories(r.categories)).catch(() => {})
+  }, [])
 
   const ask = async () => {
     if (!question.trim()) {
@@ -181,7 +198,12 @@ function RagSearch() {
     }
     setLoading(true)
     try {
-      const r = await api.ragQuery(question)
+      const r = await api.ragQuery(question, {
+        start: range?.[0]?.toISOString(),
+        end: range?.[1]?.toISOString(),
+        category,
+        retrieve_only: retrieveOnly,
+      })
       setResult(r)
     } catch (e: any) {
       message.error('问答失败: ' + e.message)
@@ -206,7 +228,7 @@ function RagSearch() {
             >{q}</Button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
           <TextArea
             style={{ flex: 1, minWidth: 200 }}
             placeholder="输入你的问题..."
@@ -217,15 +239,44 @@ function RagSearch() {
           />
           <Button type="primary" loading={loading} onClick={ask} style={{ height: 'auto' }}>提问</Button>
         </div>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <RangePicker
+            showTime
+            value={range as any}
+            onChange={(v) => setRange(v as any)}
+            placeholder={['开始时间', '结束时间']}
+          />
+          <Select
+            style={{ width: 160 }}
+            placeholder="按类别筛选"
+            allowClear
+            value={category}
+            onChange={setCategory}
+            options={categories.map((c) => ({ label: `${c.category} (${c.cnt})`, value: c.category }))}
+          />
+          <Tooltip title="开启后仅返回检索来源记录，不调用 LLM 生成回答，节省 token">
+            <label style={{ fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={retrieveOnly}
+                onChange={(e) => setRetrieveOnly(e.target.checked)}
+                style={{ marginRight: 4 }}
+              />
+              仅检索不生成
+            </label>
+          </Tooltip>
+        </div>
       </Card>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 40 }}><Spin tip="检索与生成中..." /></div>
+        <div style={{ textAlign: 'center', padding: 40 }}><Spin tip={retrieveOnly ? '检索中...' : '检索与生成中...'} /></div>
       ) : result ? (
         <div>
-          <Card title="回答" size="small" style={{ marginBottom: 16 }}>
-            {result.answer}
-          </Card>
+          {!retrieveOnly && result.answer && (
+            <Card title="回答" size="small" style={{ marginBottom: 16 }}>
+              {result.answer}
+            </Card>
+          )}
           <Card title={`来源记录 (${result.sources.length})`} size="small">
             <List
               size="small"
@@ -235,8 +286,11 @@ function RagSearch() {
                   <div style={{ width: '100%' }}>
                     <Tag color={categoryColor(s.category)}>{s.category}</Tag>
                     <span style={{ color: '#999', marginRight: 8 }}>{dayjs(s.created_at).format('MM-DD HH:mm')}</span>
-                    {s.object_name ? <strong>{s.object_name}: </strong> : ''}
+                    {s.object_name ? <strong>{privacy ? redactName(s.object_name) : s.object_name}: </strong> : ''}
                     {s.activity}
+                    {s.distance != null && (
+                      <span style={{ color: '#bbb', marginLeft: 8, fontSize: 11 }}>相似度 {(1 - s.distance).toFixed(2)}</span>
+                    )}
                   </div>
                 </List.Item>
               )}

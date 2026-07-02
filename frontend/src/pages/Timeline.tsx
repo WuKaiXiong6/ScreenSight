@@ -7,6 +7,8 @@ import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { api, categoryColor, formatDuration, formatTime, screenshotUrl } from '../api'
 import type { Segment, StatusInfo, SegmentDetail } from '../api'
+import { usePrivacy, redactName } from '../privacy'
+import { parseHash } from '../hashState'
 
 type Period = 'day' | 'week' | 'month'
 
@@ -14,8 +16,10 @@ type Period = 'day' | 'week' | 'month'
 const MINUTES_PER_DAY = 1440
 
 export default function TimelinePage() {
-  // 首屏日期：先取今天，初次加载后若今天无数据则回退到最近有数据的日期
-  const [date, setDate] = useState(dayjs())
+  const privacy = usePrivacy()
+  // 首屏日期：优先从 URL hash 读 date（支持深链），否则取今天
+  const hashDate = parseHash().date
+  const [date, setDate] = useState(() => (hashDate && dayjs(hashDate).isValid() ? dayjs(hashDate) : dayjs()))
   const [period, setPeriod] = useState<Period>('day')
   const [segments, setSegments] = useState<Segment[]>([])
   const [loading, setLoading] = useState(false)
@@ -286,7 +290,7 @@ export default function TimelinePage() {
       render: (_, r) => `${formatTime(r.start_time)} - ${formatTime(r.end_time)}`,
     },
     { title: '类别', dataIndex: 'category', width: 120, render: (c) => <Tag color={categoryColor(c)}>{c}</Tag> },
-    { title: '对象/项目', dataIndex: 'object_name', render: (v) => v || '-' },
+    { title: '对象/项目', dataIndex: 'object_name', render: (v) => v ? (privacy ? redactName(v) : v) : '-' },
     { title: '二级描述', dataIndex: 'sub_desc', render: (v) => v || '-', ellipsis: true },
     {
       title: '时长', dataIndex: 'duration_seconds', width: 100,
@@ -382,7 +386,8 @@ export default function TimelinePage() {
                           src={url}
                           width="100%"
                           height={90}
-                          style={{ objectFit: 'cover', borderRadius: 4 }}
+                          style={{ objectFit: 'cover', borderRadius: 4, filter: privacy ? 'blur(8px)' : 'none' }}
+                          preview={privacy ? false : undefined}
                         />
                         <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
                           {dayjs(c.captured_at).format('HH:mm')}
