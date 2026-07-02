@@ -1,6 +1,6 @@
 # 文件路径：docs/ARCHITECTURE.md
 # 文件作用：ScreenSight 技术架构设计，定义模块边界、数据流、技术选型与关键实现细节
-# 最后更新时间：2026-07-02-1209
+# 最后更新时间：2026-07-02-1210
 
 # ScreenSight 技术架构文档
 
@@ -214,6 +214,17 @@ CREATE TABLE usage_stats (
     cost_estimate REAL NOT NULL,
     UNIQUE(stat_date, api_type)
 );
+
+-- 费用统计聚合（小时粒度，用于趋势图与单小时成本）
+CREATE TABLE usage_stats_hourly (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    stat_hour TEXT NOT NULL,             -- YYYY-MM-DD HH:00
+    api_type TEXT NOT NULL,              -- vlm/llm/embedding
+    call_count INTEGER NOT NULL,
+    tokens_used INTEGER NOT NULL,
+    cost_estimate REAL NOT NULL,
+    UNIQUE(stat_hour, api_type)
+);
 ```
 
 ### 3.2 索引
@@ -221,6 +232,7 @@ CREATE TABLE usage_stats (
 - `recognitions(category)`、`recognitions(object_name)`、`recognitions(confidence)`
 - `activity_segments(start_time)`、`activity_segments(category)`
 - `reports(report_type, period_start)`
+- `usage_stats(stat_date, api_type)`、`usage_stats_hourly(stat_hour, api_type)`
 
 ---
 
@@ -443,10 +455,13 @@ CREATE VIRTUAL TABLE search_index USING fts5(
 | GET | /api/reports | 报告列表 |
 | GET | /api/reports/{id} | 报告详情 |
 | POST | /api/reports/generate | 手动生成报告 |
-| GET | /api/reports/{id}/export?format=md\|pdf | 导出 |
+| GET | /api/reports/{id}/export?format=md\|pdf&redact=bool | 导出（redact=true 对象名脱敏） |
 | GET | /api/search/keyword?q=&start=&end=&category=&object=&min_conf= | 关键词搜索（返回含 archive_path） |
-| POST | /api/search/rag | RAG 问答（body: {question, filters}） |
-| GET | /api/stats/usage | 费用统计 |
+| POST | /api/search/rag | RAG 问答（body: {question, filters, retrieve_only}，retrieve_only 跳过 LLM 生成） |
+| GET | /api/stats/usage | 费用统计（明细，按天与类型） |
+| GET | /api/stats/usage/trend | 按天费用趋势 |
+| GET | /api/stats/usage/hourly | 小时级用量 |
+| GET | /api/stats/usage/breakdown | 按 api_type 费用占比 |
 | GET | /api/settings | 获取设置 |
 | PUT | /api/settings | 更新设置 |
 | POST | /api/control/pause | 暂停记录 |

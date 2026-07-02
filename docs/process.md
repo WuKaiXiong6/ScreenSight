@@ -1,6 +1,6 @@
 # 文件路径：docs/process.md
 # 文件作用：ScreenSight 项目总计划、阶段状态、验证记录、未完成事项
-# 最后更新时间：2026-07-02-1209
+# 最后更新时间：2026-07-02-1248
 
 # ScreenSight 项目过程文档
 
@@ -10,18 +10,19 @@
 
 ## 1. 总计划与阶段状态
 
-### 当前阶段：前端体验优化第一批（信任感修复）— 待用户人工 UI 验证
+### 当前阶段：前端体验优化第二批（能力增强）— 待用户人工 UI 验证
 
 | 阶段 | 状态 | 说明 |
 |---|---|---|
 | 需求确认 | ✅ 已完成 | 通过 9 轮提问确认，产出 `docs/PRD.md` v1.0 |
 | 技术验证 | ✅ 已完成 | LLM/VLM/embedding 三项核心能力全部验证通过 |
 | 架构设计 | ✅ 已完成 | 产出 `docs/ARCHITECTURE.md`，固化技术细节 |
-| 开发实现 | ✅ 已完成 | 后端+前端+托盘全部实现，单元测试 25 项通过 |
+| 开发实现 | ✅ 已完成 | 后端+前端+托盘全部实现，单元测试 27 项通过 |
 | 后端链路验证 | ✅ 已完成 | 端到端真实链路验证通过（见第 3 节） |
 | 前后端联调 | ✅ 已完成 | API 巡检通过，RAG 问答准确回答用户行为 |
 | Windows 打包 | ✅ 已完成 | PyInstaller 单目录方案，真实 exe 启动联调通过 |
-| 前端体验优化第一批 | ⏳ 待用户 | 时长单位/首屏/时间轴/可解释性/响应式/状态栏 6 项，静态检查通过，待人工 UI 验证 |
+| 前端体验优化第一批 | ✅ 已完成 | 时长单位/首屏/时间轴/可解释性/响应式/状态栏 6 项，已合并 main |
+| 前端体验优化第二批 | ⏳ 待用户 | 小时报/搜索RAG增强/设置预设/费用趋势图/隐私模式/hash路由 6 项，静态检查通过，待人工 UI 验证 |
 
 ### MVP 范围
 采用**全功能一次交付**策略，已实现：截屏、VLM 识别、存储、报告、搜索/RAG、时间线界面、费用统计、系统托盘全部模块。
@@ -161,6 +162,52 @@
 回滚条件或后续观察点：若 status 响应过大影响轮询性能，可拆分接口
 ```
 
+### 决策 9：费用统计小时级建表
+```txt
+时间：2026-07-02-1248
+背景：费用页只有账单式明细，缺趋势图/单小时成本/模型占比，无法支撑成本决策
+决策：
+  - 新建 usage_stats_hourly 表（stat_hour/api_type/call_count/tokens_used/cost_estimate，UNIQUE(stat_hour,api_type)）
+  - record_usage 双写：天表保留兼容，小时表供趋势与单小时成本
+  - 新增 /stats/usage/trend（按天）、/stats/usage/hourly、/stats/usage/breakdown（按 api_type 占比）
+  - 前端用 recharts 画趋势折线 + 占比饼图 + 日预算对比
+备选方案：
+  - 复用 usage_stats 天表前端聚合：无法支持单小时成本
+  - 引入时序库：过度设计，SQLite 足够
+影响：DB schema 新增一表（init_db 幂等安全）；record_usage 每次多一次 INSERT；前端引入 recharts 图表
+回滚条件或后续观察点：若小时表写入拖慢识别主流程，可改为批量提交或异步写入
+```
+
+### 决策 10：隐私展示模式
+```txt
+时间：2026-07-02-1248
+背景：记录中含聊天对象名、订单页名、文档标题等敏感信息，演示/截图/分享报告有泄露风险
+决策：
+  - 前端新增 PrivacyContext + 顶部开关，开启后 object_name 打码（首字符+星）、截图 CSS blur、关闭图片预览
+  - 后端 export_markdown 支持 redact=true 参数，对象名脱敏
+  - 前端导出按钮在隐私模式时带 redact=true
+备选方案：
+  - 后端全局脱敏：破坏自用场景的真实数据展示
+  - 仅前端脱敏：导出文件仍含敏感信息，不彻底
+影响：演示/分享时可一键脱敏；自用关闭后显示完整信息；导出文件可独立脱敏
+回滚条件或后续观察点：若打码规则过粗（如首字符仍可辨识），可调整为更严格遮罩
+```
+
+### 决策 11：URL hash 轻量路由
+```txt
+时间：2026-07-02-1248
+背景：导航全靠内存状态，刷新丢失当前页，无法深链到某天时间线/某页，限制分享与托盘回指定页
+决策：
+  - 不引入 react-router，自建 hashState.ts（parseHash/updateHash）
+  - page 与 privacy 同步到 window.location.hash（如 #/timeline?privacy=1），监听 hashchange 恢复
+  - Timeline 首屏从 hash 读 date，支持 #/timeline?date=2026-06-30 深链到某天
+备选方案：
+  - react-router-dom：能力全但属新增依赖，4 页面规模下偏重
+  - History API：需后端配合 fallback，托盘托管静态资源场景复杂
+影响：刷新可恢复当前页与隐私模式；URL 可分享/书签；托盘可打开指定页
+回滚条件或后续观察点：若后续需嵌套路由/查询参数复杂化，可迁移至 react-router
+```
+
 ---
 
 ## 3. 验证记录
@@ -294,6 +341,28 @@
   3. 截图缩略图依赖 /screenshots 静态挂载，需确认真实运行时 archive_path 相对路径可正确访问
 ```
 
+### 前端体验优化第二批：静态检查验证
+```txt
+验证时间：2026-07-02-1248
+验证对象：小时报入口/RAG增强/设置预设/费用趋势图/隐私模式/hash路由
+验证环境：Windows 10，Python 3.14.3，Node + Vite 8.1.0，recharts 3.9.0
+操作步骤：
+  1. 后端：pytest tests/test_infra.py tests/test_repositories.py tests/test_report_search.py -v
+  2. 前端：npx tsc -b（类型检查）+ npx oxlint src（lint）+ npm run build（构建）
+  3. 检查 test_usage_hourly_trend_breakdown 断言小时表/趋势/占比
+  4. 检查 test_export_markdown_redact 断言对象名脱敏
+观察现象：
+  - 后端 27 项测试全部 PASSED（含新增 test_usage_hourly_trend_breakdown、test_export_markdown_redact）
+  - 前端 tsc -b 无输出（类型检查通过）
+  - oxlint 3 warnings（既有 react-hooks/exhaustive-deps，非本次引入），0 errors
+  - vite build 成功，产物 1.63 MB（引入 recharts 后增大，gzip 506 KB）
+结论：部分通过（静态检查全绿，前端交互/视觉待人工验证）
+遗留问题：
+  1. 费用趋势图/饼图渲染、日预算对比、隐私模式打码与截图模糊、hash 路由刷新恢复需用户在浏览器人工验证
+  2. RAG retrieve_only 模式因依赖 embedder 模型未单测，靠代码审查与人工验证
+  3. recharts 引入使前端 bundle 增大约 400 KB，后续可考虑动态导入优化
+```
+
 ---
 
 ## 4. 未完成事项
@@ -311,7 +380,7 @@
 - [x] 前后端联调与 API 巡检通过
 - [x] Windows 打包方案（PyInstaller 单目录 + 双根路径策略 + 真实 exe 启动联调）
 - [ ] 前端体验优化第一批人工 UI 验证：时长单位/首屏/时间轴三视图/缩略图/响应式/状态栏（静态检查已通过）
-- [ ] 前端体验优化第二批（6 项）：小时报入口/搜索RAG增强/设置预设/费用趋势图/隐私模式/hash 路由
+- [ ] 前端体验优化第二批人工 UI 验证：小时报/搜索RAG增强/设置预设/费用趋势图/隐私模式/hash路由（静态检查已通过）
 - [ ] 人工界面验证：前端 UI 视觉与交互需用户在浏览器验证
 - [ ] PDF 导出（需额外安装 weasyprint）
 - [ ] 打包瘦身（剥离 torch CUDA 仅留 CPU runtime，预计可省 300+ MB）
@@ -328,3 +397,4 @@
 | 2026-06-28-2036 | MVP 完成：前端+托盘+联调验证通过，待人工界面验证 |
 | 2026-06-29-0115 | Windows 打包完成：PyInstaller 单目录方案 + 真实 exe 启动联调通过 |
 | 2026-07-02-1209 | 前端体验优化第一批：时长单位/首屏/时间轴三视图/缩略图高亮/响应式/状态栏 6 项，静态检查通过，待人工 UI 验证 |
+| 2026-07-02-1248 | 前端体验优化第二批：小时报/搜索RAG增强/设置预设/费用趋势图/隐私模式/hash路由 6 项，静态检查通过，待人工 UI 验证 |
