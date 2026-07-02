@@ -1,13 +1,13 @@
 // 文件路径：frontend/src/pages/Search.tsx
 // 文件作用：搜索页面，关键词搜索 + RAG 问答 + 多维筛选
-// 最后更新时间：2026-06-28-2016
+// 最后更新时间：2026-07-02-1209
 import { useEffect, useState } from 'react'
 import {
-  Input, Button, Tabs, Table, Tag, Select, DatePicker, Slider, message, Empty, Card, List, Spin,
+  Input, Button, Tabs, Table, Tag, Select, DatePicker, Slider, message, Empty, Card, List, Spin, Image,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
-import { api, categoryColor } from '../api'
+import { api, categoryColor, highlightMatch, screenshotUrl } from '../api'
 import type { SearchResult, RagResult } from '../api'
 
 const { RangePicker } = DatePicker
@@ -30,6 +30,7 @@ export default function SearchPage() {
 function KeywordSearch() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
+  const [totalCount, setTotalCount] = useState(0)
   const [loading, setLoading] = useState(false)
   const [category, setCategory] = useState<string>()
   const [objectName, setObjectName] = useState<string>()
@@ -63,6 +64,7 @@ function KeywordSearch() {
         min_confidence: minConf > 0 ? minConf : undefined,
       })
       setResults(r.results)
+      setTotalCount(r.count)
     } catch (e: any) {
       message.error('搜索失败: ' + e.message)
     } finally {
@@ -72,12 +74,27 @@ function KeywordSearch() {
 
   const columns: ColumnsType<SearchResult> = [
     {
+      title: '缩略图', dataIndex: 'archive_path', width: 80,
+      render: (path: string | null) => {
+        const url = screenshotUrl(path)
+        return url
+          ? <Image src={url} width={56} height={36} style={{ objectFit: 'cover', borderRadius: 3 }} />
+          : <span style={{ color: '#ccc' }}>无图</span>
+      },
+    },
+    {
       title: '时间', dataIndex: 'captured_at', width: 140,
       render: (t) => t ? dayjs(t).format('YYYY-MM-DD HH:mm') : '-',
     },
     { title: '类别', dataIndex: 'category', width: 120, render: (c) => <Tag color={categoryColor(c)}>{c}</Tag> },
-    { title: '对象', dataIndex: 'object_name', render: (v) => v || '-', ellipsis: true },
-    { title: '活动描述', dataIndex: 'activity', ellipsis: true },
+    {
+      title: '对象', dataIndex: 'object_name', ellipsis: true,
+      render: (v) => v ? highlightMatch(v, query) : '-',
+    },
+    {
+      title: '活动描述', dataIndex: 'activity', ellipsis: true,
+      render: (v) => highlightMatch(v, query),
+    },
     {
       title: '置信度', dataIndex: 'confidence', width: 90,
       render: (c, r) => (
@@ -90,16 +107,16 @@ function KeywordSearch() {
 
   return (
     <div>
-      <Input.Group compact style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         <Input
-          style={{ width: '40%' }}
+          style={{ flex: 1, minWidth: 200 }}
           placeholder="搜索关键词（如 ScreenSight、写代码、电影名）"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onPressEnter={search}
         />
         <Button type="primary" loading={loading} onClick={search}>搜索</Button>
-      </Input.Group>
+      </div>
 
       <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
         <RangePicker
@@ -125,11 +142,18 @@ function KeywordSearch() {
           onChange={setObjectName}
           options={objects.map((o) => ({ label: `${o.object_name} (${o.cnt})`, value: o.object_name }))}
         />
-        <div style={{ width: 200 }}>
+        <div style={{ minWidth: 180, flex: '1 1 180px' }}>
           <span style={{ fontSize: 12, color: '#999' }}>最低置信度: {Math.round(minConf * 100)}%</span>
           <Slider min={0} max={1} step={0.1} value={minConf} onChange={setMinConf} />
         </div>
       </div>
+
+      {totalCount > 0 && (
+        <div style={{ marginBottom: 8, color: '#666', fontSize: 13 }}>
+          共命中 <strong style={{ color: '#1668dc' }}>{totalCount}</strong> 条记录
+          {results.length < totalCount && `（当前显示前 ${results.length} 条）`}
+        </div>
+      )}
 
       <Table
         columns={columns}
@@ -138,6 +162,7 @@ function KeywordSearch() {
         loading={loading}
         size="small"
         pagination={{ pageSize: 20 }}
+        scroll={{ x: 'max-content' }}
         locale={{ emptyText: <Empty description="输入关键词开始搜索" /> }}
       />
     </div>
@@ -181,9 +206,9 @@ function RagSearch() {
             >{q}</Button>
           ))}
         </div>
-        <Input.Group compact>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <TextArea
-            style={{ width: '80%' }}
+            style={{ flex: 1, minWidth: 200 }}
             placeholder="输入你的问题..."
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
@@ -191,7 +216,7 @@ function RagSearch() {
             onPressEnter={ask}
           />
           <Button type="primary" loading={loading} onClick={ask} style={{ height: 'auto' }}>提问</Button>
-        </Input.Group>
+        </div>
       </Card>
 
       {loading ? (

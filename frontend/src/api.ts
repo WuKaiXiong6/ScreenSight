@@ -1,6 +1,8 @@
 // 文件路径：frontend/src/api.ts
 // 文件作用：后端 API 调用封装
-// 最后更新时间：2026-06-28-2016
+// 最后更新时间：2026-07-02-1209
+import { createElement } from 'react'
+import type { ReactNode } from 'react'
 
 const BASE = '' // 通过 vite proxy 转发
 
@@ -70,6 +72,25 @@ export interface SearchResult {
   is_low_confidence: number
   created_at: string
   captured_at: string | null
+  capture_id: number | null
+  archive_path: string | null
+}
+
+// 截图记录（segment 详情中的 captures 项）
+export interface CaptureDetail {
+  id: number
+  captured_at: string
+  monitor_index: number
+  is_focused: number
+  archive_path: string | null
+  width: number | null
+  height: number | null
+  recognition_status: string
+}
+
+// 时段详情（含截图列表）
+export interface SegmentDetail extends Segment {
+  captures: CaptureDetail[]
 }
 
 export interface RagResult {
@@ -90,6 +111,16 @@ export interface Settings {
   rag_top_k: number
 }
 
+// 运行状态信息（/control/status 返回）
+export interface StatusInfo {
+  state: string // ACTIVE/IDLE/LOCKED/PAUSED
+  last_capture_at: string | null // 最近一次截屏时间（ISO）
+  last_recognition_at: string | null // 最近一次识别成功时间（ISO）
+  last_data_date: string | null // 最近有活动段数据的日期（YYYY-MM-DD）
+  today_cost: number // 今日预估费用合计
+  recent_error_count: number // 最近 30 分钟内失败截屏数
+}
+
 // ============ API ============
 export const api = {
   health: () => request<{ status: string; state: string }>('/api/health'),
@@ -97,6 +128,8 @@ export const api = {
   // 时间线
   getTimeline: (date?: string, period = 'day') =>
     request<TimelineResponse>(`/api/timeline?date=${date || ''}&period=${period}`),
+  getSegmentDetail: (id: number) =>
+    request<SegmentDetail>(`/api/timeline/segment/${id}`),
   deleteSegment: (id: number) =>
     request<{ deleted_files: number }>(`/api/timeline/segment/${id}`, { method: 'DELETE' }),
 
@@ -138,7 +171,7 @@ export const api = {
   getUsage: (days = 30) => request<{ start: string; end: string; records: any[] }>(`/api/stats/usage?days=${days}`),
 
   // 控制
-  getStatus: () => request<{ state: string }>('/api/control/status'),
+  getStatus: () => request<StatusInfo>('/api/control/status'),
   pause: () => request<{ state: string }>('/api/control/pause', { method: 'POST' }),
   resume: () => request<{ state: string }>('/api/control/resume', { method: 'POST' }),
 }
@@ -169,4 +202,25 @@ export function formatDuration(seconds: number): string {
 export function formatTime(iso: string): string {
   const d = new Date(iso)
   return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+}
+
+// 截图相对路径转可访问 URL（后端挂载 /screenshots 静态目录）
+export function screenshotUrl(archivePath: string | null): string | null {
+  if (!archivePath) return null
+  return `/screenshots/${archivePath}`
+}
+
+// 命中高亮：将文本中匹配关键词的部分用 <mark> 包裹（返回 React 节点数组）
+export function highlightMatch(text: string, keyword: string): ReactNode {
+  if (!keyword || !text) return text
+  // 转义正则特殊字符
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const re = new RegExp(`(${escaped})`, 'gi')
+  const parts = text.split(re)
+  if (parts.length <= 1) return text
+  return parts.map((part, i) =>
+    part.toLowerCase() === keyword.toLowerCase()
+      ? createElement('mark', { key: i, style: { background: '#ffe58f', padding: '0 2px' } }, part)
+      : part
+  )
 }

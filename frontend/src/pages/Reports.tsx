@@ -1,6 +1,6 @@
 // 文件路径：frontend/src/pages/Reports.tsx
 // 文件作用：报告页面，列表/查看/生成/导出
-// 最后更新时间：2026-06-28-2016
+// 最后更新时间：2026-07-02-1209
 import { useEffect, useState } from 'react'
 import {
   Table, Button, Modal, Segmented, DatePicker, message,
@@ -136,6 +136,7 @@ export default function ReportsPage() {
           <Button key="close" onClick={() => setModalOpen(false)}>关闭</Button>,
         ] : [<Button key="close" onClick={() => setModalOpen(false)}>关闭</Button>]}
         width={800}
+        style={{ maxWidth: '95vw' }}
       >
         {detailLoading ? (
           <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
@@ -153,7 +154,7 @@ function ReportDetail({ report }: { report: Report }) {
     <div>
       <Descriptions size="small" column={2} bordered style={{ marginBottom: 16 }}>
         <Descriptions.Item label="时段">{dayjs(report.period_start).format('YYYY-MM-DD HH:mm')} ~ {dayjs(report.period_end).format('MM-DD HH:mm')}</Descriptions.Item>
-        <Descriptions.Item label="总时长">{stats.total_hours} 小时</Descriptions.Item>
+        <Descriptions.Item label="总时长">{formatDuration(stats.total_seconds)}</Descriptions.Item>
         <Descriptions.Item label="活动段数">{stats.segment_count}</Descriptions.Item>
         <Descriptions.Item label="低置信记录">{stats.low_confidence_count}</Descriptions.Item>
       </Descriptions>
@@ -163,7 +164,7 @@ function ReportDetail({ report }: { report: Report }) {
         {stats.by_category.map((c) => (
           <div key={c.category} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <Tag color={categoryColor(c.category)} style={{ width: 100, textAlign: 'center' }}>{c.category}</Tag>
-            <span style={{ width: 60 }}>{c.hours}h</span>
+            <span style={{ width: 70 }}>{formatDuration(c.seconds)}</span>
             <Progress percent={parseFloat(c.percentage)} size="small" style={{ flex: 1 }} />
             <span style={{ width: 50 }}>{c.percentage}%</span>
           </div>
@@ -174,7 +175,7 @@ function ReportDetail({ report }: { report: Report }) {
       <div style={{ marginBottom: 16 }}>
         {stats.top_objects.map((o, i) => (
           <div key={i} style={{ marginBottom: 4 }}>
-            <Tag>{i + 1}</Tag> {o.object_name} - {o.hours}h
+            <Tag>{i + 1}</Tag> {o.object_name} - {formatDuration(o.seconds)}
           </div>
         ))}
       </div>

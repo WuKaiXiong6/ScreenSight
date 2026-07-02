@@ -1,6 +1,6 @@
 /* 文件路径：frontend/src/App.css
    文件作用：主布局样式
-   最后更新时间：2026-06-28-2016 */
+   最后更新时间：2026-07-02-1209 */
 .logo {
   height: 48px;
   display: flex;
@@ -22,6 +22,20 @@
   border-bottom: 1px solid #f0f0f0;
   height: 56px;
 }
+/* 顶部状态栏指标组 */
+.header-status-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+.header-metric {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #666;
+}
 .app-content {
   margin: 16px;
   padding: 24px;
@@ -30,7 +44,7 @@
   overflow: auto;
 }
 
-/* 时间轴色块 */
+/* 时间轴色块 - 日视图 */
 .timeline-bar {
   position: relative;
   height: 40px;
@@ -38,6 +52,10 @@
   border-radius: 6px;
   overflow: hidden;
   cursor: pointer;
+}
+.timeline-bar-mini {
+  height: 28px;
+  border-radius: 4px;
 }
 .timeline-block {
   position: absolute;
@@ -57,7 +75,124 @@
   font-size: 11px;
   color: #999;
 }
+.timeline-hour-marks-mini {
+  font-size: 10px;
+}
+/* 刻度边缘定位修正：0:00 左对齐，24:00 右对齐，避免半字裁切 */
 .timeline-hour-mark {
   position: absolute;
   transform: translateX(-50%);
 }
+.timeline-hour-mark:first-child {
+  transform: translateX(0);
+}
+.timeline-hour-mark:last-child {
+  transform: translateX(-100%);
+}
+
+/* 周视图：7 列网格 */
+.timeline-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.timeline-week-col {
+  min-width: 0;
+}
+.timeline-week-label {
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 2px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.timeline-week-total {
+  color: #999;
+  font-size: 10px;
+}
+
+/* 月视图：按天柱状网格 */
+.timeline-month-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(22px, 1fr));
+  gap: 3px;
+  height: 120px;
+  align-items: end;
+}
+.timeline-month-bar {
+  position: relative;
+  height: 100%;
+  background: #f5f5f5;
+  border-radius: 3px 3px 0 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  min-width: 0;
+}
+.timeline-month-bar.selected {
+  outline: 2px solid #000;
+}
+.timeline-month-bar.today {
+  outline: 1px solid #1668dc;
+}
+.timeline-month-fill {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  min-height: 1px;
+  opacity: 0.85;
+}
+.timeline-month-bar:hover .timeline-month-fill {
+  opacity: 1;
+}
+.timeline-month-date {
+  position: absolute;
+  bottom: 2px;
+  font-size: 9px;
+  color: #999;
+  pointer-events: none;
+}
+
+/* 列表选中行与低置信度行高亮 */
+.selected-row > td {
+  background: #e6f4ff !important;
+}
+.low-confidence-row > td {
+  background: #fffbe6 !important;
+}
+.low-confidence-row.selected-row > td {
+  background: #e6f4ff !important;
+}
+
+/* ===== 响应式断点（窄窗口适配） ===== */
+@media (max-width: 768px) {
+  .app-content {
+    margin: 8px;
+    padding: 12px;
+  }
+  .app-header {
+    padding: 0 12px !important;
+  }
+  /* 窄屏隐藏次要状态指标，仅保留状态徽标与异常标记 */
+  .header-metric {
+    display: none;
+  }
+  /* 周视图窄屏改为横向滚动，避免 7 列挤压 */
+  .timeline-week-grid {
+    display: flex;
+    overflow-x: auto;
+  }
+  .timeline-week-col {
+    min-width: 120px;
+    flex: 0 0 120px;
+  }
+}
+@media (max-width: 576px) {
+  .app-content {
+    margin: 4px;
+    padding: 8px;
+  }
+}
+
